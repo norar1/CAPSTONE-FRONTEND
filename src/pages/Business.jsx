@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 function BusinessPermit({ onUpdateStats }) {
   const [businesses, setBusinesses] = useState([]);
@@ -209,6 +210,34 @@ function BusinessPermit({ onUpdateStats }) {
       console.error('Error updating status:', error);
       alert('An error occurred while updating the status.');
     }
+  };
+
+  // Function to export data to Excel
+  const exportToExcel = () => {
+    // Create a workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Format the data for Excel
+    const excelData = filteredBusinesses.map(item => ({
+      'Date Received': item.date_received,
+      'Owner/Establishment': item.owner_establishment,
+      'Location': item.location,
+      'FCODE Fee': item.fcode_fee,
+      'OR No.': item.or_no,
+      'Evaluated By': item.evaluated_by,
+      'Date Released FSEC': item.date_released_fsec,
+      'Control No.': item.control_no,
+      'Status': item.status || 'pending'
+    }));
+    
+    // Create a worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Building Permits");
+    
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, "Building_Permits_Report.xlsx");
   };
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -500,6 +529,18 @@ function BusinessPermit({ onUpdateStats }) {
               </svg>
             </button>
           </form>
+          
+          {/* Export to Excel button */}
+          <button 
+            onClick={exportToExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded flex items-center justify-center"
+            title="Export to Excel"
+          >
+            <svg className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+            </svg>
+            Excel
+          </button>
           
           <select
             value={selectedMonth}

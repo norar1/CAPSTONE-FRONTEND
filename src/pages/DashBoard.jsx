@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BusinessPermit from './Business.jsx';
 import Occupancy from './Occupancy.jsx';
+import BFP from "../assets/BFPLubao.png";
 
 function Dashboard({ setIsAuthenticated }) {
   const [userData, setUserData] = useState(null);
@@ -129,23 +130,23 @@ function Dashboard({ setIsAuthenticated }) {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <div 
-          className="bg-blue-100 p-4 md:p-6 rounded-lg shadow border-2 border-blue-300 hover:shadow-lg transition-all cursor-pointer"
+          className="bg-red-100 p-4 md:p-6 rounded-lg shadow border-2 border-red-300 hover:shadow-lg transition-all cursor-pointer"
           onClick={() => setActiveSection('businessPermit')}
         >
-          <h3 className="text-lg md:text-xl font-bold text-blue-700 mb-2">Building Permit Management</h3>
+          <h3 className="text-lg md:text-xl font-bold text-red-700 mb-2">Building Permit Management</h3>
           <p className="text-gray-600 text-sm md:text-base">Create, update, and manage building permits.</p>
-          <button className="mt-3 md:mt-4 bg-blue-500 hover:bg-blue-600 text-white px-3 md:px-4 py-1 md:py-2 rounded text-sm md:text-base">
+          <button className="mt-3 md:mt-4 bg-red-500 hover:bg-red-600 text-white px-3 md:px-4 py-1 md:py-2 rounded text-sm md:text-base">
             Access Building Permits
           </button>
         </div>
         
         <div 
-          className="bg-red-100 p-4 md:p-6 rounded-lg shadow border-2 border-red-300 hover:shadow-lg transition-all cursor-pointer"
+          className="bg-blue-100 p-4 md:p-6 rounded-lg shadow border-2 border-blue-300 hover:shadow-lg transition-all cursor-pointer"
           onClick={() => setActiveSection('occupancy')}
         >
-          <h3 className="text-lg md:text-xl font-bold text-red-700 mb-2">Occupancy Management</h3>
+          <h3 className="text-lg md:text-xl font-bold text-blue-700 mb-2">Occupancy Management</h3>
           <p className="text-gray-600 text-sm md:text-base">Create, update, and manage occupancy permits.</p>
-          <button className="mt-3 md:mt-4 bg-red-500 hover:bg-red-600 text-white px-3 md:px-4 py-1 md:py-2 rounded text-sm md:text-base">
+          <button className="mt-3 md:mt-4 bg-blue-500 hover:bg-blue-600 text-white px-3 md:px-4 py-1 md:py-2 rounded text-sm md:text-base">
             Access Occupancy Permits
           </button>
         </div>
@@ -178,24 +179,28 @@ function Dashboard({ setIsAuthenticated }) {
 
   return (
     <div className="min-h-screen flex bg-gray-100">
-      <div className={`bg-blue-800 text-white fixed md:relative z-30 h-screen
+      <div className={`bg-red-200 text-gray-800 fixed md:relative z-30 h-screen
         ${sidebarOpen ? 'w-64' : 'w-0 md:w-16'} flex flex-col 
         transition-all duration-300 ease-in-out ${sidebarOpen ? 'left-0' : '-left-64 md:left-0'}`}>
-        <div className="p-3 md:p-4 border-b border-blue-700 flex items-center justify-between">
+        <div className="p-3 md:p-4 border-b border-red-300 flex items-center justify-between">
           <h1 className={`font-bold ${sidebarOpen ? 'text-lg md:text-xl' : 'text-xs md:text-sm'} ${!sidebarOpen && 'md:block hidden'} text-center`}>
             {sidebarOpen ? 'Lubao Fire Station' : 'LFS'}
           </h1>
-          <button 
-            onClick={() => setSidebarOpen(!sidebarOpen)} 
-            className="p-1 md:p-2 bg-blue-700 hover:bg-blue-600 rounded md:hidden"
-          >
-            {sidebarOpen ? '✕' : '☰'}
-          </button>
+          <div className="flex items-center">
+            <img src={BFP}  alt="BFP Lubao Logo"className={`transition-all duration-200 ${sidebarOpen ? 'h-12 w-12' : 'h-8 w-8'}`}/>
+
+            <button 
+              onClick={() => setSidebarOpen(!sidebarOpen)} 
+              className="p-1 md:p-2 bg-red-300 hover:bg-red-400 rounded md:hidden ml-2"
+            >
+              {sidebarOpen ? '✕' : '☰'}
+            </button>
+          </div>
         </div>
         
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)} 
-          className="p-1 md:p-2 bg-blue-700 hover:bg-blue-600 self-end m-2 rounded hidden md:block"
+          className="p-1 md:p-2 bg-red-300 hover:bg-red-400 self-end m-2 rounded hidden md:block"
         >
           {sidebarOpen ? '←' : '→'}
         </button>
@@ -203,7 +208,7 @@ function Dashboard({ setIsAuthenticated }) {
         <div className="flex flex-col flex-grow mt-4 md:mt-6">
           <button
             onClick={() => setActiveSection('dashboard')}
-            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'dashboard' ? 'bg-blue-700' : 'hover:bg-blue-700'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
+            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'dashboard' ? 'bg-red-300' : 'hover:bg-red-300'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -213,7 +218,7 @@ function Dashboard({ setIsAuthenticated }) {
           
           <button
             onClick={() => setActiveSection('businessPermit')}
-            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'businessPermit' ? 'bg-blue-700' : 'hover:bg-blue-700'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
+            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'businessPermit' ? 'bg-red-300' : 'hover:bg-red-300'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -223,7 +228,7 @@ function Dashboard({ setIsAuthenticated }) {
           
           <button
             onClick={() => setActiveSection('occupancy')}
-            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'occupancy' ? 'bg-blue-700' : 'hover:bg-blue-700'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
+            className={`py-2 md:py-3 px-3 md:px-4 ${activeSection === 'occupancy' ? 'bg-red-300' : 'hover:bg-red-300'} flex items-center ${sidebarOpen ? 'justify-start' : 'justify-center'}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -232,9 +237,9 @@ function Dashboard({ setIsAuthenticated }) {
           </button>
         </div>
 
-        <div className="mt-auto border-t border-blue-700 p-3 md:p-4">
+        <div className="mt-auto border-t border-red-300 p-3 md:p-4">
           {userData && sidebarOpen && (
-            <div className="text-xs md:text-sm mb-2 md:mb-3 text-blue-200">
+            <div className="text-xs md:text-sm mb-2 md:mb-3 text-red-800">
               <span>{userData.email}</span>
             </div>
           )}
@@ -263,7 +268,7 @@ function Dashboard({ setIsAuthenticated }) {
             {!sidebarOpen && (
               <button 
                 onClick={() => setSidebarOpen(true)} 
-                className="mr-3 p-2 bg-blue-700 text-white rounded md:hidden"
+                className="mr-3 p-2 bg-red-400 text-white rounded md:hidden"
               >
                 ☰
               </button>

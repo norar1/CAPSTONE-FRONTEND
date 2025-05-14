@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import BFP from '../assets/BFPLubao.png';
+import BFPBg from '../assets/BFPBg.jpg';
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -57,9 +59,19 @@ function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-red-100">
+    <div 
+      className="min-h-screen flex items-center justify-center"
+      style={{ 
+        backgroundImage: `url(${BFPBg})`, 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center' 
+      }}
+    >
       <div className="bg-white p-8 rounded-lg shadow-lg border-4 border-blue-500 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-red-700 mb-6 text-center">SIGN UP</h1>
+        <div className="flex items-center justify-center mb-6 gap-4">
+          <h1 className="text-3xl font-bold text-red-700">SIGN UP</h1>
+          <img src={BFP} alt="BFP Logo" className="h-16" />
+        </div>
         
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">

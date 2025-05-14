@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 function Occupancy({ onUpdateStats }) {
   const [businesses, setBusinesses] = useState([]);
@@ -81,6 +82,34 @@ function Occupancy({ onUpdateStats }) {
     
     setFilteredBusinesses(filtered);
     setCurrentPage(1);
+  };
+
+  
+  const exportToExcel = () => {
+  
+    const wb = XLSX.utils.book_new();
+    
+
+    const excelData = filteredBusinesses.map(item => ({
+      'Date Received': item.date_received,
+      'Owner/Establishment': item.owner_establishment,
+      'Location': item.location,
+      'FCODE Fee': item.fcode_fee,
+      'OR No.': item.or_no,
+      'Inspected By': item.evaluated_by,
+      'Date Released FSIC': item.date_released_fsec,
+      'Control No.': item.control_no,
+      'Status': item.status || 'approved'
+    }));
+    
+ 
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Occupancy Permits");
+    
+  
+    XLSX.writeFile(wb, "Occupancy_Permits_Report.xlsx");
   };
 
   const handleInputChange = (e) => {
@@ -456,10 +485,22 @@ function Occupancy({ onUpdateStats }) {
               className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-r"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8a4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
             </button>
           </form>
+          
+         
+          <button 
+            onClick={exportToExcel}
+            className="bg-green-600 hover:bg-red-700 text-white px-3 py-2 rounded flex items-center justify-center"
+            title="Export to Excel"
+          >
+            <svg className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+            </svg>
+            Excel
+          </button>
           
           <select
             value={selectedMonth}
@@ -480,6 +521,30 @@ function Occupancy({ onUpdateStats }) {
             <option value="11">November</option>
             <option value="12">December</option>
           </select>
+          
+          <button 
+            onClick={() => {
+              setFormData({
+                date_received: '',
+                owner_establishment: '',
+                location: '',
+                fcode_fee: '',
+                or_no: '',
+                evaluated_by: '',
+                date_released_fsec: '',
+                control_no: '',
+                status: 'approved'
+              });
+              setEditingId(null);
+              setShowForm(true);
+            }}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded flex items-center justify-center w-full md:w-auto"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Create New
+          </button>
         </div>
       </div>
       
