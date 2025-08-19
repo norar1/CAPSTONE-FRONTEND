@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 function BusinessPermit({ onUpdateStats }) {
   const [businesses, setBusinesses] = useState([]);
@@ -282,8 +282,9 @@ function BusinessPermit({ onUpdateStats }) {
     }
   };
 
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Business Permits');
     
     let dataToExport = [];
     
@@ -295,25 +296,46 @@ function BusinessPermit({ onUpdateStats }) {
     
     dataToExport.sort((a, b) => new Date(b.date_received) - new Date(a.date_received));
     
-    const excelData = dataToExport.map(item => ({
-      'Date Received': item.date_received,
-      'Owner/Establishment': item.owner_establishment,
-      'Location': item.location,
-      'FCODE Fee': item.fcode_fee,
-      'OR No.': item.or_no,
-      'Evaluated By': item.evaluated_by,
-      'Date Released FSEC': item.date_released_fsec,
-      'Control No.': item.control_no,
-      'Status': item.status || 'pending',
-      'Business Payment Status': item.payment_status_business === 'paid' ? 'Paid' : 'Not Paid',
-      'Business Payment Date': item.last_payment_date_business || 'N/A'
-    }));
+    worksheet.columns = [
+      { header: 'Date Received', key: 'date_received', width: 15 },
+      { header: 'Owner/Establishment', key: 'owner_establishment', width: 25 },
+      { header: 'Location', key: 'location', width: 25 },
+      { header: 'FCODE Fee', key: 'fcode_fee', width: 12 },
+      { header: 'OR No.', key: 'or_no', width: 15 },
+      { header: 'Evaluated By', key: 'evaluated_by', width: 20 },
+      { header: 'Date Released FSEC', key: 'date_released_fsec', width: 18 },
+      { header: 'Control No.', key: 'control_no', width: 15 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Business Payment Status', key: 'payment_status_business', width: 20 },
+      { header: 'Business Payment Date', key: 'last_payment_date_business', width: 18 }
+    ];
 
-    const ws = XLSX.utils.json_to_sheet(excelData);
+    dataToExport.forEach(item => {
+      worksheet.addRow({
+        date_received: item.date_received,
+        owner_establishment: item.owner_establishment,
+        location: item.location,
+        fcode_fee: item.fcode_fee,
+        or_no: item.or_no,
+        evaluated_by: item.evaluated_by,
+        date_released_fsec: item.date_released_fsec,
+        control_no: item.control_no,
+        status: item.status || 'pending',
+        payment_status_business: item.payment_status_business === 'paid' ? 'Paid' : 'Not Paid',
+        last_payment_date_business: item.last_payment_date_business || 'N/A'
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
     
-    XLSX.utils.book_append_sheet(wb, ws, "Business Permits");
-    
-    XLSX.writeFile(wb, "Business_Permits_Report.xlsx");
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'Business_Permits_Report.xlsx';
+    anchor.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const indexOfLastItem = currentPage * itemsPerPage;

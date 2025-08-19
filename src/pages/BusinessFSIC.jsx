@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 function FSIC({ onUpdateStats }) {
   const [businesses, setBusinesses] = useState([]);
@@ -172,8 +172,10 @@ function FSIC({ onUpdateStats }) {
     }
   };
 
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('FSIC Permits');
+    
     let dataToExport = filteredBusinesses;
     
     if (selectedMonth === '' && selectedYear === '' && statusFilter === '') {
@@ -182,29 +184,58 @@ function FSIC({ onUpdateStats }) {
     
     dataToExport.sort((a, b) => new Date(b.date_applied) - new Date(a.date_applied));
     
-    const excelData = dataToExport.map(item => ({
-      'Contact Number': item.contact_number,
-      'Business Name': item.business_name,
-      'Owner': item.owner,
-      'Barangay': item.brgy,
-      'Complete Address': item.complete_address,
-      'Floor Area (SQM)': item.floor_area,
-      'No of Storeys': item.no_of_storeys,
-      'Rental': item.rental,
-      'Nature of Business': item.nature_of_business,
-      'BIR TIN': item.bir_tin,
-      'Expiry': item.expiry,
-      'Amount Paid': item.amount_paid,
-      'OR Number': item.or_number,
-      'Date Applied': item.date_applied,
-      'Type of Occupancy': item.type_of_occupancy,
-      'Date Released': item.date_released,
-      'Status': item.status
-    }));
+    worksheet.columns = [
+      { header: 'Contact Number', key: 'contact_number', width: 15 },
+      { header: 'Business Name', key: 'business_name', width: 25 },
+      { header: 'Owner', key: 'owner', width: 20 },
+      { header: 'Barangay', key: 'brgy', width: 15 },
+      { header: 'Complete Address', key: 'complete_address', width: 30 },
+      { header: 'Floor Area (SQM)', key: 'floor_area', width: 15 },
+      { header: 'No of Storeys', key: 'no_of_storeys', width: 12 },
+      { header: 'Rental', key: 'rental', width: 10 },
+      { header: 'Nature of Business', key: 'nature_of_business', width: 25 },
+      { header: 'BIR TIN', key: 'bir_tin', width: 15 },
+      { header: 'Expiry', key: 'expiry', width: 12 },
+      { header: 'Amount Paid', key: 'amount_paid', width: 12 },
+      { header: 'OR Number', key: 'or_number', width: 15 },
+      { header: 'Date Applied', key: 'date_applied', width: 12 },
+      { header: 'Type of Occupancy', key: 'type_of_occupancy', width: 20 },
+      { header: 'Date Released', key: 'date_released', width: 12 },
+      { header: 'Status', key: 'status', width: 12 }
+    ];
     
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    XLSX.utils.book_append_sheet(wb, ws, "FSIC Permits");
-    XLSX.writeFile(wb, "FSIC_Permits_Report.xlsx");
+    dataToExport.forEach(item => {
+      worksheet.addRow({
+        contact_number: item.contact_number,
+        business_name: item.business_name,
+        owner: item.owner,
+        brgy: item.brgy,
+        complete_address: item.complete_address,
+        floor_area: item.floor_area,
+        no_of_storeys: item.no_of_storeys,
+        rental: item.rental,
+        nature_of_business: item.nature_of_business,
+        bir_tin: item.bir_tin,
+        expiry: item.expiry,
+        amount_paid: item.amount_paid,
+        or_number: item.or_number,
+        date_applied: item.date_applied,
+        type_of_occupancy: item.type_of_occupancy,
+        date_released: item.date_released,
+        status: item.status
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'FSIC_Permits_Report.xlsx';
+    anchor.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleInputChange = (e) => {
