@@ -42,9 +42,15 @@ function Login({ setIsAuthenticated }) {
       
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.account));
+      localStorage.setItem('role', data.account.role);
       
       setIsAuthenticated(true);
-      navigate('/dashboard');
+      
+      if (data.account.role === 'admin') {
+        navigate('/AdminDashboard');
+      } else {
+        navigate('/UserDashboard');
+      }
     } catch (error) {
       setError(error.message);
     } finally {

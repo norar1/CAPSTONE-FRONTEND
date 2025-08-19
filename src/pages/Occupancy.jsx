@@ -13,14 +13,19 @@ function Occupancy({ onUpdateStats }) {
     evaluated_by: '',
     date_released_fsec: '',
     control_no: '',
-    status: 'approved'
+    status: 'approved',
+    payment_status_occupancy: 'not_paid',
+    last_payment_date_occupancy: ''
   });
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [showPaidThisYear, setShowPaidThisYear] = useState(false);
+  const [showNotPaid, setShowNotPaid] = useState(false);
 
   useEffect(() => {
     fetchBusinesses();
@@ -28,17 +33,21 @@ function Occupancy({ onUpdateStats }) {
 
   useEffect(() => {
     filterBusinesses();
-  }, [businesses, searchQuery, selectedMonth]);
+  }, [businesses, searchQuery, selectedMonth, selectedYear, showPaidThisYear, showNotPaid]);
 
   const fetchBusinesses = async () => {
     try {
       const response = await fetch('http://localhost:3000/api/firestation/business/GetPermit');
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.permits) {
+        setBusinesses(data.permits);
+      } else if (data.success && data.businesses) {
         setBusinesses(data.businesses);
+      } else {
+        setBusinesses([]);
       }
     } catch (error) {
-      console.error('Error fetching businesses:', error);
+      setBusinesses([]);
     }
   };
 
@@ -51,13 +60,14 @@ function Occupancy({ onUpdateStats }) {
     try {
       const response = await fetch(`http://localhost:3000/api/firestation/business/search?query=${searchQuery}`);
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.permits) {
+        setBusinesses(data.permits);
+      } else if (data.success && data.businesses) {
         setBusinesses(data.businesses);
       } else {
         setBusinesses([]);
       }
     } catch (error) {
-      console.error('Error searching businesses:', error);
       setBusinesses([]);
     }
   };
@@ -80,17 +90,89 @@ function Occupancy({ onUpdateStats }) {
       });
     }
     
+    if (selectedYear) {
+      filtered = filtered.filter(business => {
+        const date = new Date(business.date_received);
+        const year = date.getFullYear();
+        return year.toString() === selectedYear;
+      });
+    }
+    
+    if (showPaidThisYear || showNotPaid) {
+      filtered = filtered.filter(business => {
+        const currentYear = new Date().getFullYear();
+        const paymentYear = business.last_payment_date_occupancy 
+          ? new Date(business.last_payment_date_occupancy).getFullYear() 
+          : null;
+        
+        const isPaidThisYear = business.payment_status_occupancy === 'paid' && paymentYear === currentYear;
+        
+        if (showPaidThisYear && isPaidThisYear) return true;
+        if (showNotPaid && !isPaidThisYear) return true;
+        return false;
+      });
+    }
+    
+    filtered.sort((a, b) => new Date(b.date_received) - new Date(a.date_received));
+    
     setFilteredBusinesses(filtered);
     setCurrentPage(1);
   };
 
-  
-  const exportToExcel = () => {
-  
-    const wb = XLSX.utils.book_new();
+  const getRowColor = (business) => {
+    const currentYear = new Date().getFullYear();
+    const paymentYear = business.last_payment_date_occupancy 
+      ? new Date(business.last_payment_date_occupancy).getFullYear() 
+      : null;
     
+    const isPaidThisYear = business.payment_status_occupancy === 'paid' && paymentYear === currentYear;
+    
+    if (isPaidThisYear) {
+      return 'bg-green-100 hover:bg-green-200';
+    } else {
+      return 'bg-red-100 hover:bg-red-200';
+    }
+  };
 
-    const excelData = filteredBusinesses.map(item => ({
+  const handleOccupancyPaymentStatusChange = async (businessId, newStatus) => {
+    try {
+      const updateData = {
+        payment_status_occupancy: newStatus,
+        last_payment_date_occupancy: newStatus === 'paid' ? new Date().toISOString().split('T')[0] : null
+      };
+
+      const response = await fetch(`http://localhost:3000/api/firestation/business/UpdateOccupancyPaymentStatus/${businessId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        fetchBusinesses();
+        if (onUpdateStats) {
+          onUpdateStats();
+        }
+      }
+    } catch (error) {
+      console.error('Error updating occupancy payment status:', error);
+    }
+  };
+
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+    let dataToExport = filteredBusinesses;
+    
+    if (selectedMonth === '' && selectedYear === '') {
+      dataToExport = businesses.filter(business => business.status === 'approved');
+    }
+    
+    dataToExport.sort((a, b) => new Date(b.date_received) - new Date(a.date_received));
+    
+    const excelData = dataToExport.map(item => ({
       'Date Received': item.date_received,
       'Owner/Establishment': item.owner_establishment,
       'Location': item.location,
@@ -99,16 +181,12 @@ function Occupancy({ onUpdateStats }) {
       'Inspected By': item.evaluated_by,
       'Date Released FSIC': item.date_released_fsec,
       'Control No.': item.control_no,
-      'Status': item.status || 'approved'
+      'Occupancy Payment Status': item.payment_status_occupancy === 'paid' ? 'Paid' : 'Not Paid',
+      'Occupancy Payment Date': item.last_payment_date_occupancy || 'N/A'
     }));
     
- 
     const ws = XLSX.utils.json_to_sheet(excelData);
-    
-    
     XLSX.utils.book_append_sheet(wb, ws, "Occupancy Permits");
-    
-  
     XLSX.writeFile(wb, "Occupancy_Permits_Report.xlsx");
   };
 
@@ -123,16 +201,8 @@ function Occupancy({ onUpdateStats }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      let url = 'http://localhost:3000/api/firestation/business/CreatePermit';
-      let method = 'POST';
-      
-      if (editingId) {
-        url = `http://localhost:3000/api/firestation/business/UpdatePermit/${editingId}`;
-        method = 'PUT';
-      }
-      
-      const response = await fetch(url, {
-        method,
+      const response = await fetch(`http://localhost:3000/api/firestation/business/UpdatePermit/${editingId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -151,7 +221,9 @@ function Occupancy({ onUpdateStats }) {
           evaluated_by: '',
           date_released_fsec: '',
           control_no: '',
-          status: 'approved'
+          status: 'approved',
+          payment_status_occupancy: 'not_paid',
+          last_payment_date_occupancy: ''
         });
         setEditingId(null);
         setShowForm(false);
@@ -175,7 +247,9 @@ function Occupancy({ onUpdateStats }) {
       evaluated_by: business.evaluated_by,
       date_released_fsec: business.date_released_fsec,
       control_no: business.control_no,
-      status: business.status || 'approved'
+      status: business.status || 'approved',
+      payment_status_occupancy: business.payment_status_occupancy || 'not_paid',
+      last_payment_date_occupancy: business.last_payment_date_occupancy || ''
     });
     setEditingId(business._id);
     setShowForm(true);
@@ -211,7 +285,6 @@ function Occupancy({ onUpdateStats }) {
 
   const renderPagination = () => {
     const pageNumbers = [];
-    
     const maxVisiblePages = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -309,7 +382,7 @@ function Occupancy({ onUpdateStats }) {
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg w-full max-w-5xl mx-4 max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-2 border-b">
           <h3 className="text-lg md:text-xl font-bold text-red-700">
-            {editingId ? 'Update' : 'Create New'} Occupancy Permit
+            Update Occupancy Permit
           </h3>
           <button 
             type="button"
@@ -417,19 +490,32 @@ function Occupancy({ onUpdateStats }) {
                 required
               />
             </div>
-            
+
             <div>
-              <label className="block text-gray-700 mb-1 text-sm">Status</label>
+              <label className="block text-gray-700 mb-1 text-sm">Occupancy Payment Status</label>
               <select
-                name="status"
-                value={formData.status}
+                name="payment_status_occupancy"
+                value={formData.payment_status_occupancy}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded"
-                required
               >
-                <option value="approved">Approved</option>
+                <option value="not_paid">Not Paid</option>
+                <option value="paid">Paid</option>
               </select>
             </div>
+
+            {formData.payment_status_occupancy === 'paid' && (
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Occupancy Payment Date</label>
+                <input
+                  type="date"
+                  name="last_payment_date_occupancy"
+                  value={formData.last_payment_date_occupancy}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+            )}
           </div>
           
           <div className="mt-6 flex justify-end sticky bottom-0 bg-white pt-2 border-t">
@@ -445,9 +531,12 @@ function Occupancy({ onUpdateStats }) {
                   evaluated_by: '',
                   date_released_fsec: '',
                   control_no: '',
-                  status: 'approved'
+                  status: 'approved',
+                  payment_status_occupancy: 'not_paid',
+                  last_payment_date_occupancy: ''
                 });
                 setEditingId(null);
+                setShowForm(false);
               }}
               className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded mr-2"
             >
@@ -457,7 +546,7 @@ function Occupancy({ onUpdateStats }) {
               type="submit" 
               className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
             >
-              {editingId ? 'Update' : 'Submit'}
+              Update
             </button>
           </div>
         </form>
@@ -465,165 +554,182 @@ function Occupancy({ onUpdateStats }) {
     </div>
   );
 
-  const renderTable = () => (
-    <div className="bg-white p-4 md:p-6 rounded-lg shadow">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-4 md:space-y-0">
-        <h3 className="text-lg md:text-xl font-bold text-red-700">Occupancy Permits</h3>
-        
-        <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-2 w-full md:w-auto">
-          <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="flex w-full md:w-auto">
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleSearchKeyPress}
-              className="px-4 py-2 border border-gray-300 rounded-l focus:outline-none w-full"
-            />
-            <button
-              type="submit"
-              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-r"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8a4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </form>
-          
-         
-          <button 
-            onClick={exportToExcel}
-            className="bg-green-600 hover:bg-red-700 text-white px-3 py-2 rounded flex items-center justify-center"
-            title="Export to Excel"
-          >
-            <svg className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-            </svg>
-            Excel
-          </button>
-          
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded focus:outline-none w-full md:w-auto"
-          >
-            <option value="">All Months</option>
-            <option value="1">January</option>
-            <option value="2">February</option>
-            <option value="3">March</option>
-            <option value="4">April</option>
-            <option value="5">May</option>
-            <option value="6">June</option>
-            <option value="7">July</option>
-            <option value="8">August</option>
-            <option value="9">September</option>
-            <option value="10">October</option>
-            <option value="11">November</option>
-            <option value="12">December</option>
-          </select>
-          
-          <button 
-            onClick={() => {
-              setFormData({
-                date_received: '',
-                owner_establishment: '',
-                location: '',
-                fcode_fee: '',
-                or_no: '',
-                evaluated_by: '',
-                date_released_fsec: '',
-                control_no: '',
-                status: 'approved'
-              });
-              setEditingId(null);
-              setShowForm(true);
-            }}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded flex items-center justify-center w-full md:w-auto"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            Create New
-          </button>
-        </div>
-      </div>
-      
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 table-fixed">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 md:w-28">Date Received</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36 md:w-40">Owner/Establishment</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36 md:w-40">Location</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 md:w-24">FCODE Fee</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 md:w-24">OR No.</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28 md:w-32">Inspected By</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 md:w-28">Date Released</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 md:w-28">Control No.</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">Status</th>
-              <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 md:w-28">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {currentItems.length > 0 ? (
-              currentItems.map((business) => (
-                <tr key={business._id} className="hover:bg-gray-50">
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.date_received}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.owner_establishment}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.location}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.fcode_fee}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.or_no}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.evaluated_by}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.date_released_fsec}</td>
-                  <td className={`px-2 md:px-3 ${rowSize} truncate`}>{business.control_no}</td>
-                  <td className={`px-2 md:px-3 ${rowSize}`}>
-                    <span className="px-1.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                      {business.status || 'approved'}
-                    </span>
-                  </td>
-                  <td className={`px-2 md:px-3 ${rowSize}`}>
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => handleEdit(business)}
-                        className="text-blue-600 hover:text-blue-900 text-xs"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(business._id)}
-                        className="text-red-600 hover:text-red-900 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="10" className="px-6 py-4 text-center text-sm text-gray-500">
-                  No records found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      
-      {filteredBusinesses.length > 0 && renderPagination()}
-      
-      {filteredBusinesses.length > 0 && (
-        <div className="mt-2 text-xs text-gray-500 text-right">
-          Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredBusinesses.length)} of {filteredBusinesses.length} records
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <>
       {showForm && renderForm()}
-      {renderTable()}
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 space-y-4 md:space-y-0">
+          <h3 className="text-lg md:text-xl font-bold text-red-700">Occupancy Permits</h3>
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-2 w-full md:w-auto">
+            <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="flex w-full md:w-auto">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+                className="px-4 py-2 border border-gray-300 rounded-l focus:outline-none w-full"
+              />
+              <button
+                type="submit"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-r"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8a4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </form>
+            
+            <button 
+              onClick={exportToExcel}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded flex items-center justify-center"
+              title="Export to Excel"
+            >
+              <svg className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+              </svg>
+              Excel
+            </button>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded focus:outline-none w-full md:w-auto"
+            >
+              <option value="">All Months</option>
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded focus:outline-none w-full md:w-auto"
+            >
+              <option value="">All Years</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-4 text-xs items-center">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showPaidThisYear"
+              checked={showPaidThisYear}
+              onChange={() => setShowPaidThisYear(!showPaidThisYear)}
+              className="mr-2"
+            />
+            <label htmlFor="showPaidThisYear">Paid This Year</label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showNotPaid"
+              checked={showNotPaid}
+              onChange={() => setShowNotPaid(!showNotPaid)}
+              className="mr-2"
+            />
+            <label htmlFor="showNotPaid">Not Paid / Overdue</label>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300 table-fixed border-collapse">
+            <thead className="bg-gray-100">
+              <tr className="border-b border-gray-300">
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 md:w-28 border-r border-gray-200">Date Received</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-36 md:w-40 border-r border-gray-200">Owner/Establishment</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-36 md:w-40 border-r border-gray-200">Location</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20 md:w-24 border-r border-gray-200">FCODE Fee</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20 md:w-24 border-r border-gray-200">OR No.</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-28 md:w-32 border-r border-gray-200">Inspected By</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 md:w-28 border-r border-gray-200">Date Released</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 md:w-28 border-r border-gray-200">Control No.</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-28 md:w-32 border-r border-gray-200">Occupancy Payment</th>
+                <th className="px-2 md:px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-24 md:w-28">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {currentItems.length > 0 ? (
+                currentItems.map((business) => (
+                  <tr key={business._id} className={`border-b border-gray-200 ${getRowColor(business)}`}>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.date_received}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.owner_establishment}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.location}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.fcode_fee}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.or_no}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.evaluated_by}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.date_released_fsec}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} truncate border-r border-gray-200`}>{business.control_no}</td>
+                    <td className={`px-2 md:px-3 ${rowSize} border-r border-gray-200`}>
+                      <select
+                        value={business.payment_status_occupancy || 'not_paid'}
+                        onChange={(e) => handleOccupancyPaymentStatusChange(business._id, e.target.value)}
+                        className="w-full px-1 py-1 border border-gray-300 rounded text-xs bg-white"
+                      >
+                        <option value="not_paid">Not Paid</option>
+                        <option value="paid">Paid</option>
+                      </select>
+                      {business.last_payment_date_occupancy && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(business.last_payment_date_occupancy).toLocaleDateString()}
+                        </div>
+                      )}
+                    </td>
+                    <td className={`px-2 md:px-3 ${rowSize}`}>
+                      <div className="flex space-x-1">
+                        <button
+                          onClick={() => handleEdit(business)}
+                          className="text-blue-600 hover:text-blue-900 text-xs"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(business._id)}
+                          className="text-red-600 hover:text-red-900 text-xs"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="10" className="px-6 py-4 text-center text-sm text-gray-500">
+                    No records found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {filteredBusinesses.length > 0 && renderPagination()}
+        
+        {filteredBusinesses.length > 0 && (
+          <div className="mt-2 text-xs text-gray-500 text-right">
+            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredBusinesses.length)} of {filteredBusinesses.length} records
+          </div>
+        )}
+      </div>
     </>
   );
 }
